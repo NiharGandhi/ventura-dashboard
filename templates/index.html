@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition Dashboard</title>
+    <!-- Add the Tailwind CSS link -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(45deg, #5a67d8, #9f7aea);
+        }
+    </style>
+</head>
+
+<body class="gradient-bg">
+    <div class="container mx-auto py-10 px-4">
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h1 class="text-4xl font-bold mb-4">Ventura Dashboard</h1>
+            <p class="text-black mb-4">Manage your database from here, <span class="text-lg font-bold">with ease!!</span></p>
+            <a href="https://ventura-attendance-view.streamlit.app/"
+                class="py-2 px-4 mt-10 bg-gray-500 hover:bg-blue-900 text-white font-bold rounded-lg" target="_blank"
+                rel="noopener noreferrer">
+                View Attendance
+            </a>
+            <a href="https://nihargandhi.github.io/ventura-website/"
+                class="py-2 px-4 mt-10 ml-3 bg-gray-500 hover:bg-blue-900 text-white font-bold rounded-lg" target="_blank"
+                rel="noopener noreferrer">
+                Ventura Website
+            </a>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 px-2">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold mb-4">Capture Images</h2>
+                <form id="captureForm">
+                    <div class="mb-4">
+                        <label for="nameInput" class="block text-gray-700">Enter your name:</label>
+                        <input type="text" id="nameInput" placeholder="Name"
+                            class="mt-1 px-4 py-2 w-full border rounded-lg focus:outline-none focus:ring focus:border-blue-300">
+                    </div>
+                    <button type="submit"
+                        class="py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg">
+                        Start Capturing
+                    </button>
+                </form>
+                <p class="mt-4 text-red-600" id="statusMessage"></p>
+                <div id="capturedImages" class="mt-4">
+                    <!-- Captured images will be displayed here -->
+                </div>
+                <!-- <button class="py-2 px-4 mt-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg"
+                    id="uploadButton" disabled>Upload Images</button> -->
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold mb-4">Train Encoding File</h2>
+                <form id="trainForm">
+                    <button type="submit"
+                        class="py-2 px-4 bg-yellow-500 hover:bg-yellow-600 text-white font-bold rounded-lg"
+                        id="trainButton">Train Encoding File</button>
+                </form>
+                <p class="mt-4 text-red-600" id="trainStatusMessage"></p>
+                <a href="#" class="py-2 px-4 mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg"
+                    id="downloadButton" download style="display:none">Download Encoding File</a>
+            </div>
+        </div>
+        <div class="px-2">
+            <div class="bg-white rounded-lg shadow-md p-6 mt-6">
+                <h2 class="text-xl font-bold mb-4">User Folders in Firebase</h2>
+                <ul id="userFoldersList">
+                    {% for folder in user_folders %}
+                    <li class="flex justify-between items-center border-b border-gray-300 py-2">
+                        <span class="text-lg">{{ folder }}</span>
+                        <button class="py-2 px-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg"
+                            onclick="deleteFolder('{{ folder }}')">Delete</button>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add your script here -->
+    <script>
+        // Function to display status messages
+        function displayMessage(elementId, message) {
+            const statusElement = document.getElementById(elementId);
+            statusElement.textContent = message;
+        }
+
+        // Function to capture images
+        document.getElementById('captureForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('nameInput');
+            const name = nameInput.value.trim();
+
+            if (name === '') {
+                alert('Please enter your name.');
+                return;
+            }
+
+            // Call the Flask API endpoint to capture images
+            fetch('/capture_images', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `name=${encodeURIComponent(name)}`,
+            })
+                .then(response => response.json())
+                .then(data => {
+                    displayMessage('statusMessage', data.message);
+                    // Enable the "Upload Images" button
+                    document.getElementById('uploadButton').disabled = false;
+                })
+                .catch(error => {
+                    console.error('Error capturing images:', error);
+                });
+        });
+
+        // Function to train encoding file
+        document.getElementById('trainForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            // Call the Flask API endpoint to train the encoding file
+            fetch('/train_encoding', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+                .then(response => response.json())
+                .then(data => {
+                    displayMessage('trainStatusMessage', data.message);
+                    // Enable the "Download Encoding File" button
+                    document.getElementById('downloadButton').style.display = 'inline';
+                })
+                .catch(error => {
+                    console.error('Error training encoding file:', error);
+                });
+        });
+
+        // Function to delete a user folder
+        function deleteFolder(folder) {
+            if (confirm(`Are you sure you want to delete the folder "${folder}"?`)) {
+                fetch(`/delete_user_folder/${encodeURIComponent(folder)}`, {
+                    method: 'DELETE',
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message);
+                        // Refresh the page to update the list of user folders
+                        window.location.reload();
+                    })
+                    .catch(error => {
+                        console.error('Error deleting folder:', error);
+                    });
+            }
+        }
+    </script>
+</body>
+
+</html>
